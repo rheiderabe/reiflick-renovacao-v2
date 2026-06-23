@@ -1,17 +1,32 @@
 import {
   normalizePhoneNumber,
-  sendPurchaseMessage,
+  sendRenovacaoMessage,
 } from "@/lib/multchats/wabaMultchats";
 
-function resolveCliente(item) {
+function resolvePayload(item) {
   if (typeof item === "string" || typeof item === "number") {
     return {
-      whatsapp: String(item),
-      name: "Cliente",
+      customer: {
+        name: "Cliente",
+        phone: String(item),
+      },
     };
   }
 
-  return item || {};
+  if (item?.customer) {
+    return item;
+  }
+
+  return {
+    customer: {
+      name: item?.name || "Cliente",
+      phone:
+        item?.phone ||
+        item?.phone_number ||
+        item?.whatsapp ||
+        item?.customer_phone,
+    },
+  };
 }
 
 export default async function handler(req, res) {
@@ -34,57 +49,45 @@ export default async function handler(req, res) {
     const sentList = [];
     const errorList = [];
 
-    for (const rawCliente of data) {
+    for (const item of data) {
       await new Promise((resolve) => setTimeout(resolve, 2000));
 
-      const cliente = resolveCliente(rawCliente);
-      const cleanWhatsapp = normalizePhoneNumber(cliente.whatsapp);
+      const payload = resolvePayload(item);
+      const cleanWhatsapp = normalizePhoneNumber(
+        payload.customer?.phone || payload.customer?.phone_number,
+      );
 
       if (!cleanWhatsapp) {
-        console.log(
-          `Pulando cliente ${
-            cliente.name || "sem nome"
-          } - número vazio ou inválido`,
-        );
+        console.log("Pulando número vazio ou inválido");
         errorList.push({
-          cliente: cliente.name || cliente.id || "sem nome",
+          whatsapp: item,
           erro: "Número de WhatsApp vazio ou inválido",
         });
         continue;
       }
 
       try {
-        const multchatsResponse = await sendPurchaseMessage({
-          customer: { name: cliente.name },
-          phone_number: cleanWhatsapp,
-          isRenew: true,
-          fullMessage: cliente.customer_renew_template || "",
-        });
+        const whatsappResult = await sendRenovacaoMessage(payload);
 
         messagesSent++;
         sentList.push({
           whatsapp: cleanWhatsapp,
-          cliente: cliente.name,
-          id: cliente.id,
+          cliente: payload.customer?.name,
           status: "enviado",
           multchats: {
-            templateId: multchatsResponse.templateId,
-            params: multchatsResponse.params,
+            templateId: whatsappResult.templateId,
+            params: whatsappResult.params,
           },
         });
-        console.log(
-          `Mensagem enviada para: ${cliente.name || cleanWhatsapp} (${cleanWhatsapp})`,
-        );
+        console.log(`Mensagem enviada para: ${cleanWhatsapp}`);
       } catch (error) {
-        const errorMsg = `Erro ao enviar mensagem para ${cliente.name || cleanWhatsapp} (${cleanWhatsapp})`;
         console.error(
-          errorMsg,
+          `Erro ao enviar mensagem para ${cleanWhatsapp}:`,
           error.response ? error.response.data : error.message,
         );
         errorList.push({
-          cliente: cliente.name,
           whatsapp: cleanWhatsapp,
-          id: cliente.id,
+          cliente: payload.customer?.name,
           erro: error.response ? error.response.data : error.message,
         });
       }

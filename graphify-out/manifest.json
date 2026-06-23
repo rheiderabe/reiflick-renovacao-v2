@@ -1,0 +1,62 @@
+{
+  "C:\\Users\\Rheider\\projetos\\reiflick-renovacao-v2\\next.config.mjs": {
+    "mtime": 1755110578.9360137,
+    "hash": "d22255e453468e95a94685220e289c7d"
+  },
+  "C:\\Users\\Rheider\\projetos\\reiflick-renovacao-v2\\postcss.config.js": {
+    "mtime": 1755110578.940014,
+    "hash": "9a248c780e4c76f85b0f492f63a3d417"
+  },
+  "C:\\Users\\Rheider\\projetos\\reiflick-renovacao-v2\\tailwind.config.js": {
+    "mtime": 1755110578.9420135,
+    "hash": "673de95fa02f92fe4b2bf45cbe096ea2"
+  },
+  "C:\\Users\\Rheider\\projetos\\reiflick-renovacao-v2\\app\\layout.js": {
+    "mtime": 1755110578.9340136,
+    "hash": "51b8dbe6cc70c2c253347511b369b2e8"
+  },
+  "C:\\Users\\Rheider\\projetos\\reiflick-renovacao-v2\\app\\page.js": {
+    "mtime": 1782183292.0460474,
+    "hash": "5d20501e87a81d2b957ccfb56102b502"
+  },
+  "C:\\Users\\Rheider\\projetos\\reiflick-renovacao-v2\\lib\\multchats\\wabaMultchats.js": {
+    "mtime": 1782183289.0356357,
+    "hash": "e62dc000723fd18ccfe726cabf4798a2"
+  },
+  "C:\\Users\\Rheider\\projetos\\reiflick-renovacao-v2\\pages\\api\\send-cancelados.js": {
+    "mtime": 1782182079.8046682,
+    "hash": "6945bc3d8a1751fdab6db19083657069"
+  },
+  "C:\\Users\\Rheider\\projetos\\reiflick-renovacao-v2\\pages\\api\\send-reidodrama.js": {
+    "mtime": 1755110578.9390137,
+    "hash": "9e65aade818153af4fefad9238ddd8b6"
+  },
+  "C:\\Users\\Rheider\\projetos\\reiflick-renovacao-v2\\pages\\api\\send-renovacao.js": {
+    "mtime": 1782183083.751582,
+    "hash": "6b59ecea275e144805bcbf4b46643882"
+  },
+  "C:\\Users\\Rheider\\projetos\\reiflick-renovacao-v2\\README.md": {
+    "mtime": 1755110578.9330144,
+    "hash": "c6cfc64b928e8f785c6a37b44f3f20c5"
+  },
+  "C:\\Users\\Rheider\\projetos\\reiflick-renovacao-v2\\public\\file.svg": {
+    "mtime": 1755110578.940014,
+    "hash": "d09f95206c3fa0bb9bd9fefabfd0ea71"
+  },
+  "C:\\Users\\Rheider\\projetos\\reiflick-renovacao-v2\\public\\globe.svg": {
+    "mtime": 1755110578.9410136,
+    "hash": "2aaafa6a49b6563925fe440891e32717"
+  },
+  "C:\\Users\\Rheider\\projetos\\reiflick-renovacao-v2\\public\\next.svg": {
+    "mtime": 1755110578.9410136,
+    "hash": "8e061864f388b47f33a1c3780831193e"
+  },
+  "C:\\Users\\Rheider\\projetos\\reiflick-renovacao-v2\\public\\vercel.svg": {
+    "mtime": 1755110578.9420135,
+    "hash": "c0af2f507b369b085b35ef4bbe3bcf1e"
+  },
+  "C:\\Users\\Rheider\\projetos\\reiflick-renovacao-v2\\public\\window.svg": {
+    "mtime": 1755110578.9420135,
+    "hash": "a2760511c65806022ad20adf74370ff3"
+  }
+}

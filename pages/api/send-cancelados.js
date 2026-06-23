@@ -1,6 +1,6 @@
 import {
   normalizePhoneNumber,
-  sendAbandonedCartMessage,
+  sendCanceladosMessage,
 } from "@/lib/multchats/wabaMultchats";
 
 function resolvePayload(item) {
@@ -67,7 +67,7 @@ export default async function handler(req, res) {
       }
 
       try {
-        const whatsappResult = await sendAbandonedCartMessage(payload);
+        const whatsappResult = await sendCanceladosMessage(payload);
 
         messagesSent++;
         sentList.push({

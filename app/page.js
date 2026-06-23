@@ -136,8 +136,8 @@ export default function Home() {
               </div>
               <div className="bg-red-50 border-l-4 border-red-500 p-4 mb-6 rounded-r-lg">
                 <p className="text-red-700">
-                  📱 Envie mensagens de cancelamento via WhatsApp. Você pode
-                  inserir os números de duas formas:
+                  📱 Envie mensagens de carrinho abandonado via WhatsApp. Você
+                  pode inserir os números de duas formas:
                 </p>
                 <div className="mt-3 text-sm text-red-600">
                   <div className="mb-2">
@@ -182,7 +182,7 @@ OU Array JSON:
                 disabled={loading}
                 className="w-full bg-red-500 text-white py-4 px-6 rounded-lg font-semibold text-lg hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 transform hover:scale-105 shadow-lg"
               >
-                {loading ? "📤 Enviando..." : "🚀 Enviar Cancelados"}
+                {loading ? "📤 Enviando..." : "🚀 Enviar Carrinho Abandonado"}
               </button>
             </div>
           )}
