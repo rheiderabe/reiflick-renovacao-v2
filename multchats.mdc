@@ -1,0 +1,305 @@
+---
+description: quando falar sobre api do multchats
+alwaysApply: false
+---
+
+---
+
+description: >-
+Integração Multchats API (WABA) — envio de templates carrinho/compra, texto livre
+e webhook de automação. Use ao implementar ou depurar WhatsApp via Multchats,
+wabaMultchats.js, templates WABA, carrinho abandonado Kirvano ou entrega pós-compra.
+globs: app/Controllers/Http/V2/multchats/**,app/Controllers/Http/V2/**/WebhookController.js,\*\*/abandonedCart.js
+alwaysApply: false
+
+---
+
+# Multchats API — integração WABA (Reiflick)
+
+Skill de referência para replicar **exatamente** a integração deste repositório com a [Multchats API v2](https://api.multchats.com/v2). O módulo canônico é:
+
+`app/Controllers/Http/V2/multchats/wabaMultchats.js`
+
+Ao implementar em outro projeto ou webhook, **copie o padrão deste módulo** — não reinvente endpoints, shapes de body ou IDs.
+
+---
+
+## Credenciais e IDs (valores padrão do projeto)
+
+Estes são os defaults em código (sobrescrevíveis via `.env`):
+
+| Variável `.env`                    | Valor padrão                                                                           | Uso                            |
+| ---------------------------------- | -------------------------------------------------------------------------------------- | ------------------------------ |
+| `MULTCHATS_API_BASE`               | `https://api.multchats.com/v2`                                                         | Base da API                    |
+| `MULTCHATS_API_TOKEN`              | `019e806c-12e3-7bf8-a54d-73287b728c46`                                                 | Bearer token                   |
+| `MULTCHATS_INTEGRATION_ID`         | `cmpxg4255004y14i7tzuh3b90`                                                            | Integração WABA no painel      |
+| `MULTCHATS_CARRINHO_TEMPLATE_ID`   | `1313925986831411`                                                                     | Template "carrinho" (abandono) |
+| `MULTCHATS_COMPRA_TEMPLATE_ID`     | `1528932175630070`                                                                     | Template "compra" (pós-venda)  |
+| `MULTCHATS_AUTOMATION_WEBHOOK_URL` | `https://backend.multchats.com/automation-webhook/xo5cpojiczb3c9run0pshnxf?force=true` | Automação (mensagem longa)     |
+
+**Autenticação:** todas as chamadas à API v2 usam:
+
+```http
+Authorization: Bearer 019e806c-12e3-7bf8-a54d-73287b728c46
+Content-Type: application/json
+```
+
+---
+
+## Endpoint principal
+
+```
+POST {MULTCHATS_API_BASE}/message/send-message
+```
+
+### Mensagem de texto livre
+
+Usada **depois** do template de compra (janela de 24h aberta pelo template aprovado).
+
+```json
+{
+  "integrationId": "cmpxg4255004y14i7tzuh3b90",
+  "phoneNumber": "5511999999999",
+  "message": {
+    "type": "text",
+    "text": {
+      "body": "Texto completo do guia de acesso..."
+    }
+  }
+}
+```
+
+### Mensagem com template WABA
+
+```json
+{
+  "integrationId": "cmpxg4255004y14i7tzuh3b90",
+  "phoneNumber": "5511999999999",
+  "message": {
+    "type": "template",
+    "template": {
+      "templateId": "1528932175630070",
+      "params": {
+        "bodyText": {
+          "param_1": "João",
+          "param_2": "compra"
+        }
+      }
+    }
+  }
+}
+```
+
+O `phoneNumber` deve ser **somente dígitos** (DDI + DDD + número). Use `normalizePhoneNumber`: `String(phone).replace(/\D/g, "")`.
+
+---
+
+## Templates WABA
+
+### Template carrinho (`1313925986831411`)
+
+Carrinho abandonado (webhook Kirvano `ABANDONED_CART`).
+
+| Parâmetro          | Significado   | Origem                                                     |
+| ------------------ | ------------- | ---------------------------------------------------------- |
+| `bodyText.param_1` | Primeiro nome | `payload.customer.name` (1ª palavra; fallback `"Cliente"`) |
+
+JSON no painel: **Integrações → Ações → Modelos**.
+
+Função: `buildAbandonedCartTemplateParams(payload)` → `sendAbandonedCartMessage(payload)`.
+
+### Template compra (`1528932175630070`)
+
+Template **curto** — abre janela de 24h; o guia completo vai em texto livre em seguida.
+
+| Parâmetro          | Significado    | Origem                                          |
+| ------------------ | -------------- | ----------------------------------------------- |
+| `bodyText.param_1` | Primeiro nome  | `customer.name` ou `context.customerName`       |
+| `bodyText.param_2` | Tipo do pedido | `"compra"` ou `"renovação"` (`context.isRenew`) |
+
+Função: `buildPurchaseTemplateParams(context)` → `sendPurchaseMessage(context)`.
+
+---
+
+## Funções exportadas (`wabaMultchats.js`)
+
+| Função                                                                    | Quando usar                                                  |
+| ------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| `sendTemplateMessage({ phoneNumber, templateId, params, integrationId })` | Envio genérico de template                                   |
+| `sendTextMessage({ phoneNumber, text, integrationId })`                   | Texto livre (após template)                                  |
+| `sendAbandonedCartMessage(payload, options?)`                             | Carrinho abandonado Kirvano                                  |
+| `sendPurchaseMessage(context, options?)`                                  | Compra/renovação: template + opcional `fullMessage` em texto |
+| `sendAutomationWebhook({ phoneNumber, message })`                         | Entrega via automação Multchats (mensagem longa formatada)   |
+| `prepareMessageForMultchatsAutomation(message)`                           | Ajusta Markdown → WhatsApp antes do webhook                  |
+| `normalizePhoneNumber(phone)`                                             | Remove não-dígitos                                           |
+
+---
+
+## Fluxo compra / renovação (Reiflick & Braip)
+
+1. Processar pedido no webhook (criar/renovar usuário, montar `messageWhatsflow`).
+2. Enviar e-mail (opcional, paralelo).
+3. **Multchats template + texto:**
+
+```javascript
+const {
+  sendPurchaseMessage,
+  sendAutomationWebhook,
+} = require("../multchats/wabaMultchats");
+
+await sendPurchaseMessage({
+  customer: data?.customer,
+  phone_number,
+  sale_id,
+  isRenew,
+  user_data,
+  planName: findMyPackage.name,
+  expiresAtLabel,
+  fullMessage: messageWhatsflow.trim(), // enviado como texto após o template
+});
+```
+
+4. **Automação Multchats** (mensagem longa com formatação):
+
+```javascript
+await sendAutomationWebhook({
+  phoneNumber: phone_number,
+  message: deliveryMessage,
+});
+```
+
+`sendPurchaseMessage` internamente:
+
+- Monta `params` com `buildPurchaseTemplateParams`
+- Chama `sendTemplateMessage` com `MULTCHATS_COMPRA_TEMPLATE_ID`
+- Se `fullMessage` não vazio, chama `sendTextMessage` na sequência
+
+**Sempre envolver em try/catch** — falha de WhatsApp não deve derrubar o webhook inteiro.
+
+---
+
+## Fluxo carrinho abandonado (Kirvano)
+
+Arquivo: `app/Controllers/Http/V2/Reiflick/abandonedCart.js`
+
+```javascript
+const {
+  sendAbandonedCartMessage,
+  normalizePhoneNumber,
+} = require("../multchats/wabaMultchats");
+
+// payload.event === "ABANDONED_CART"
+const whatsappResult = await sendAbandonedCartMessage(payload);
+// whatsappResult: { phoneNumber, templateId, params, multchatsResponse }
+```
+
+Persistir no Mongo (`kirvano_abandoned_cart_webhooks`) com metadados do envio.
+
+---
+
+## Webhook de automação (Markdown → WhatsApp)
+
+`POST MULTCHATS_AUTOMATION_WEBHOOK_URL` com body:
+
+```json
+{
+  "message": "texto preparado",
+  "phone": "5511999999999"
+}
+```
+
+**Sem** header `Authorization` — URL já contém o token da automação.
+
+### Regra crítica: `prepareMessageForMultchatsAutomation`
+
+O backend Multchats interpreta o body como **Markdown**:
+
+- `*negrito WhatsApp*` vira _itálico_ no Markdown → converter `*texto*` para `**texto**`
+- Linhas só com `---` somem (horizontal rule) → prefixar com zero-width space `\u200b`
+
+Sempre passar a mensagem por essa função antes de `sendAutomationWebhook`.
+
+---
+
+## Implementação em novo projeto (checklist)
+
+1. Copiar `wabaMultchats.js` para `multchats/wabaMultchats.js` (ou equivalente).
+2. Adicionar variáveis ao `.env` (ou manter defaults do código).
+3. Dependência: `axios` com `timeout: 30000`.
+4. Em webhooks de venda: `sendPurchaseMessage` + `sendAutomationWebhook`.
+5. Em webhook de abandono: `sendAbandonedCartMessage`.
+6. Validar telefone com `normalizePhoneNumber` antes de persistir.
+7. Logar erros com `sale_id` / `phone_number` sem abortar resposta 200 do webhook principal.
+
+---
+
+## Erros comuns
+
+| Sintoma                               | Causa provável                                 | Ação                                          |
+| ------------------------------------- | ---------------------------------------------- | --------------------------------------------- |
+| `MULTCHATS_API_TOKEN não configurado` | Token vazio no env                             | Definir token ou usar default                 |
+| `Telefone ausente ou inválido`        | `phone_number` null ou só caracteres especiais | Validar antes do envio                        |
+| `Multchats template "..." falhou`     | `params` não batem com o template no Meta      | Conferir JSON no painel Integrações → Modelos |
+| Negrito errado na automação           | Markdown não preparado                         | Usar `prepareMessageForMultchatsAutomation`   |
+| Template ok, texto não chega          | `fullMessage` vazio ou fora da janela 24h      | Garantir template antes do texto livre        |
+
+---
+
+## Referência rápida cURL
+
+### Template compra
+
+```bash
+curl -X POST "https://api.multchats.com/v2/message/send-message" \
+  -H "Authorization: Bearer 019e806c-12e3-7bf8-a54d-73287b728c46" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "integrationId": "cmpxg4255004y14i7tzuh3b90",
+    "phoneNumber": "5511999999999",
+    "message": {
+      "type": "template",
+      "template": {
+        "templateId": "1528932175630070",
+        "params": {
+          "bodyText": {
+            "param_1": "Maria",
+            "param_2": "compra"
+          }
+        }
+      }
+    }
+  }'
+```
+
+### Template carrinho
+
+```bash
+curl -X POST "https://api.multchats.com/v2/message/send-message" \
+  -H "Authorization: Bearer 019e806c-12e3-7bf8-a54d-73287b728c46" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "integrationId": "cmpxg4255004y14i7tzuh3b90",
+    "phoneNumber": "5511999999999",
+    "message": {
+      "type": "template",
+      "template": {
+        "templateId": "1313925986831411",
+        "params": {
+          "bodyText": {
+            "param_1": "Maria"
+          }
+        }
+      }
+    }
+  }'
+```
+
+---
+
+## Arquivos que consomem este módulo
+
+- `app/Controllers/Http/V2/Reiflick/WebhookController.js` — compra + automação
+- `app/Controllers/Http/V2/Braip/WebhookController.js` — automação
+- `app/Controllers/Http/V2/Reiflick/abandonedCart.js` — carrinho abandonado
+
+Ao alterar templates ou credenciais, atualizar **este arquivo**, `wabaMultchats.js` e o `.env` em conjunto.
