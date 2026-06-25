@@ -1,5 +1,5 @@
 import {
-  normalizePhoneNumber,
+  resolvePhoneForMultchats,
   sendCanceladosMessage,
 } from "@/lib/multchats/wabaMultchats";
 
@@ -53,7 +53,7 @@ export default async function handler(req, res) {
       await new Promise((resolve) => setTimeout(resolve, 2000));
 
       const payload = resolvePayload(item);
-      const cleanWhatsapp = normalizePhoneNumber(
+      const cleanWhatsapp = resolvePhoneForMultchats(
         payload.customer?.phone || payload.customer?.phone_number,
       );
 
@@ -74,20 +74,25 @@ export default async function handler(req, res) {
           whatsapp: cleanWhatsapp,
           cliente: payload.customer?.name,
           status: "enviado",
+          metodo: whatsappResult.deliveryMethod || "template",
           multchats: {
             templateId: whatsappResult.templateId,
             params: whatsappResult.params,
+            templateError: whatsappResult.templateError || null,
           },
         });
         console.log(`Mensagem enviada para: ${cleanWhatsapp}`);
       } catch (error) {
         console.error(
           `Erro ao enviar mensagem para ${cleanWhatsapp}:`,
-          error.response ? error.response.data : error.message,
+          error.response?.data?.message || error.message,
         );
         errorList.push({
           whatsapp: cleanWhatsapp,
-          erro: error.response ? error.response.data : error.message,
+          erro:
+            error.response?.data?.message ||
+            error.response?.data ||
+            error.message,
         });
       }
     }
