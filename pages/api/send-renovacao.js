@@ -44,14 +44,14 @@ export default async function handler(req, res) {
   }
 
   try {
-    const data = req.body;
+    const data = Array.isArray(req.body) ? req.body : [req.body];
     let messagesSent = 0;
     const sentList = [];
     const errorList = [];
 
-    for (const item of data) {
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+    const seenPhones = new Set();
 
+    for (const item of data) {
       const payload = resolvePayload(item);
       const cleanWhatsapp = resolvePhoneForMultchats(
         payload.customer?.phone || payload.customer?.phone_number,
@@ -66,6 +66,12 @@ export default async function handler(req, res) {
         continue;
       }
 
+      if (seenPhones.has(cleanWhatsapp)) {
+        console.log(`Pulando número duplicado: ${cleanWhatsapp}`);
+        continue;
+      }
+      seenPhones.add(cleanWhatsapp);
+
       try {
         const whatsappResult = await sendRenovacaoMessage(payload);
 
@@ -78,6 +84,7 @@ export default async function handler(req, res) {
           multchats: {
             templateId: whatsappResult.templateId,
             params: whatsappResult.params,
+            resposta: whatsappResult.multchatsResponse,
           },
         });
         console.log(`Mensagem enviada para: ${cleanWhatsapp}`);

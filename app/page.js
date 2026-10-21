@@ -1,11 +1,16 @@
 "use client";
 
 import { useState } from "react";
+import { resolvePhoneForMultchats } from "@/lib/multchats/phone";
+
+const SEND_DELAY_MS = 1000;
+const REQUEST_TIMEOUT_MS = 90000;
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState("cancelados");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
+  const [progress, setProgress] = useState(null);
 
   // Estados para cada formulário
   const [canceladosData, setCanceladosData] = useState("");
@@ -26,9 +31,85 @@ export default function Home() {
       .filter((line) => line.length > 0);
   };
 
+  // Remove números repetidos (mesmo número em formatos diferentes conta como um só)
+  const dedupePhoneItems = (items) => {
+    const seen = new Set();
+    return items.filter((item) => {
+      const phone =
+        typeof item === "string" || typeof item === "number"
+          ? item
+          : item?.customer?.phone ||
+            item?.phone ||
+            item?.phone_number ||
+            item?.whatsapp ||
+            item?.customer_phone;
+      const key = resolvePhoneForMultchats(phone);
+      if (!key) return true;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  };
+
+  // Envia um número por requisição: cada request termina rápido, sem ficar
+  // pendente e sem risco de reenvio do lote inteiro por timeout/retry
+  const sendOneByOne = async (endpoint, items) => {
+    const enviados = [];
+    const erros = [];
+
+    for (let i = 0; i < items.length; i++) {
+      setProgress({ done: i, total: items.length });
+
+      if (i > 0) {
+        await new Promise((resolve) => setTimeout(resolve, SEND_DELAY_MS));
+      }
+
+      const controller = new AbortController();
+      const timeoutId = setTimeout(
+        () => controller.abort(),
+        REQUEST_TIMEOUT_MS,
+      );
+
+      try {
+        const response = await fetch(`/api/${endpoint}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify([items[i]]),
+          signal: controller.signal,
+        });
+        const body = await response.json();
+
+        if (!response.ok) {
+          throw new Error(
+            typeof body.error === "string"
+              ? body.error
+              : JSON.stringify(body.error) || "Erro na requisição",
+          );
+        }
+
+        enviados.push(...(body.enviados || []));
+        erros.push(...(body.erros || []));
+      } catch (error) {
+        erros.push({
+          whatsapp: items[i],
+          erro:
+            error.name === "AbortError"
+              ? "Tempo esgotado (status do envio desconhecido)"
+              : error.message,
+        });
+      } finally {
+        clearTimeout(timeoutId);
+      }
+    }
+
+    setProgress({ done: items.length, total: items.length });
+    return { total: enviados.length, enviados, erros };
+  };
+
   const handleSubmit = async (endpoint, data) => {
     setLoading(true);
     setResult(null);
+    setProgress(null);
 
     try {
       let parsedData;
@@ -41,6 +122,19 @@ export default function Home() {
         }
       } catch (e) {
         throw new Error("Dados inválidos. Verifique a formatação.");
+      }
+
+      if (endpoint === "send-cancelados" || endpoint === "send-renovacao") {
+        if (!Array.isArray(parsedData)) {
+          throw new Error("Dados inválidos. Verifique a formatação.");
+        }
+
+        const result = await sendOneByOne(
+          endpoint,
+          dedupePhoneItems(parsedData),
+        );
+        setResult({ success: true, data: result });
+        return;
       }
 
       const response = await fetch(`/api/${endpoint}`, {
@@ -182,7 +276,9 @@ OU Array JSON:
                 disabled={loading}
                 className="w-full bg-red-500 text-white py-4 px-6 rounded-lg font-semibold text-lg hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 transform hover:scale-105 shadow-lg"
               >
-                {loading ? "📤 Enviando..." : "🚀 Enviar Carrinho Abandonado"}
+                {loading
+                  ? `📤 Enviando...${progress ? ` ${progress.done}/${progress.total}` : ""}`
+                  : "🚀 Enviar Carrinho Abandonado"}
               </button>
             </div>
           )}
@@ -278,7 +374,9 @@ OU Array JSON:
                 disabled={loading}
                 className="w-full bg-blue-500 text-white py-4 px-6 rounded-lg font-semibold text-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 transform hover:scale-105 shadow-lg"
               >
-                {loading ? "📤 Enviando..." : "♻️ Enviar Renovação"}
+                {loading
+                  ? `📤 Enviando...${progress ? ` ${progress.done}/${progress.total}` : ""}`
+                  : "♻️ Enviar Renovação"}
               </button>
             </div>
           )}
@@ -320,6 +418,18 @@ OU Array JSON:
                       <div className="mt-4 max-h-48 overflow-y-auto">
                         <pre className="text-sm text-green-700 whitespace-pre-wrap bg-white p-3 rounded border">
                           {JSON.stringify(result.data.enviados, null, 2)}
+                        </pre>
+                      </div>
+                    </details>
+                  )}
+                  {result.data.erros && result.data.erros.length > 0 && (
+                    <details className="bg-red-100 rounded-lg p-4 mt-4" open>
+                      <summary className="cursor-pointer text-red-800 font-semibold hover:text-red-900">
+                        ⚠️ Falhas: {result.data.erros.length}
+                      </summary>
+                      <div className="mt-4 max-h-48 overflow-y-auto">
+                        <pre className="text-sm text-red-700 whitespace-pre-wrap bg-white p-3 rounded border">
+                          {JSON.stringify(result.data.erros, null, 2)}
                         </pre>
                       </div>
                     </details>
